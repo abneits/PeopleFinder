@@ -11,7 +11,7 @@ Carte web collaborative pour cartographier les zones déjà parcourues lors de l
 
 - Backend : **FastAPI** (Python).
 - DB : **PostgreSQL 16**, **externe** au conteneur. Points stockés en **JSONB**. **Pas de PostGIS**.
-- Schéma : table des traces avec colonne `deleted_at TIMESTAMPTZ NULL` ; index partiel `WHERE deleted_at IS NULL` recommandé.
+- Schéma : table `traces` avec colonnes `deleted_at TIMESTAMPTZ NULL`, `kind TEXT NOT NULL DEFAULT 'search'` (`search`|`todo`), `confidence` **NULLABLE** (toujours NULL pour les `todo`). Index partiel `WHERE deleted_at IS NULL` recommandé. Migrations exprimées en `ALTER TABLE IF NOT EXISTS` + bloc `DO $$` idempotent dans `schema.py`.
 - Front : **vanilla JS + HTML servis par FastAPI**. Pas de build step, pas de SPA séparée.
 - Carto : **Leaflet** + fond OSM.
 - Docker : **une seule image** contient backend + assets statiques.
@@ -35,9 +35,10 @@ Carte web collaborative pour cartographier les zones déjà parcourues lors de l
 - **Soft-delete** : la suppression écrit `deleted_at = NOW()`, ne fait **pas** de `DELETE` SQL. But : rollback manuel en DB (`UPDATE traces SET deleted_at = NULL WHERE id = ...`). **Pas d'endpoint ni d'UI de restore** (volontaire).
 - **Lectures filtrent `deleted_at IS NULL` par défaut**. Inclusion via query param `?include_deleted=true` sur `GET /traces`. La réponse expose `deleted_at` (null ou ISO 8601) pour que le front distingue.
 - `DELETE /traces/{id}` est idempotent (re-suppression = no-op).
-- Le **halo** autour d'une trace est une polyligne Leaflet plus large en **pixels**, opacité ~0.25. Ce n'est **pas** un buffer géodésique — pas de turf.js, pas de `ST_Buffer`.
-- **Couleurs imposées** par niveau de confiance, ne pas réinventer :
-  - faible `#e74c3c`, moyen `#f39c12`, fort `#f1c40f`.
+- Le **halo** autour d'une trace de recherche est une polyligne Leaflet plus large en **pixels**, opacité ~0.4, avec un **liseré sombre** (`#1a1a1a`, weight 9) posé sous la ligne couleur pour visibilité sur fond satellite. Ce n'est **pas** un buffer géodésique — pas de turf.js, pas de `ST_Buffer`.
+- **Couleurs imposées** (palette catégorielle rouge/bleu/vert, fort écart de teinte), ne pas réinventer :
+  - faible `#dc2626` (rouge), moyen `#2563eb` (bleu), fort `#16a34a` (vert).
+- **Tracés "à explorer"** (kind=todo) : cyan `#06b6d4`, pointillés épais (`dashArray: "12, 10"`), **pas de halo**, pas de niveau de confiance.
 - **Mobile-first** (pas juste responsive en bonus).
 - Au chargement : `fitBounds` sur l'union des bbox des traces **non supprimées** uniquement.
 

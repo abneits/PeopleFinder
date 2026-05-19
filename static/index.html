@@ -20,13 +20,17 @@
       </header>
 
       <div class="panel-section">
-        <button id="btn-add" class="btn btn-primary" type="button">+ Ajouter une trace</button>
+        <button id="btn-add" class="btn btn-primary" type="button">+ Ajouter</button>
       </div>
 
       <div class="panel-section">
         <label class="toggle">
           <input type="checkbox" id="toggle-show-deleted" />
           <span>Afficher les traces supprimées</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-show-todo" checked />
+          <span>Afficher les tracés à explorer</span>
         </label>
       </div>
 
@@ -39,7 +43,7 @@
 
     <!-- Bandeau d'aide du mode manuel -->
     <div id="manual-banner" class="banner hidden">
-      <span class="banner-text">
+      <span class="banner-text" id="manual-banner-text">
         Mode manuel : clic = point, double-clic sur un point = annule le dernier.
       </span>
       <div class="banner-actions">
@@ -48,30 +52,56 @@
       </div>
     </div>
 
-    <!-- Modale: choix d'ajout -->
+    <!-- Modale: choix d'ajout (4 onglets) -->
     <div id="modal-add" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card">
         <header class="modal-header">
-          <h2>Ajouter une trace</h2>
+          <h2>Ajouter</h2>
           <button class="modal-close" data-close="modal-add" type="button" aria-label="Fermer">✕</button>
         </header>
         <div class="tabs">
-          <button class="tab active" data-tab="tab-gpx" type="button">Upload GPX</button>
-          <button class="tab" data-tab="tab-manual" type="button">Tracer manuellement</button>
+          <button class="tab active" data-tab="tab-gpx-search" type="button">GPX recherche</button>
+          <button class="tab" data-tab="tab-manual-search" type="button">Tracer recherche</button>
+          <button class="tab" data-tab="tab-gpx-todo" type="button">GPX à explorer</button>
+          <button class="tab" data-tab="tab-manual-todo" type="button">Tracer à explorer</button>
         </div>
-        <div id="tab-gpx" class="tab-panel">
-          <div id="dropzone" class="dropzone">
+
+        <div id="tab-gpx-search" class="tab-panel">
+          <div class="dropzone" data-dz="search">
             <p>Glissez un fichier GPX ici ou</p>
             <label class="btn">
               Choisir un fichier
-              <input type="file" id="gpx-file" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden />
+              <input type="file" class="gpx-file-input" data-kind="search"
+                     accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden />
             </label>
-            <p id="gpx-filename" class="muted"></p>
+            <p class="gpx-filename muted" data-fn="search"></p>
           </div>
         </div>
-        <div id="tab-manual" class="tab-panel hidden">
-          <p>Vous allez dessiner la trace directement sur la carte.</p>
-          <button id="start-manual" class="btn btn-primary" type="button">Commencer le tracé</button>
+
+        <div id="tab-manual-search" class="tab-panel hidden">
+          <p>Tracer une zone <strong>parcourue</strong> directement sur la carte.</p>
+          <button class="btn btn-primary start-manual" data-kind="search" type="button">
+            Commencer le tracé
+          </button>
+        </div>
+
+        <div id="tab-gpx-todo" class="tab-panel hidden">
+          <div class="dropzone" data-dz="todo">
+            <p>Glissez un fichier GPX ici ou</p>
+            <label class="btn">
+              Choisir un fichier
+              <input type="file" class="gpx-file-input" data-kind="todo"
+                     accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden />
+            </label>
+            <p class="gpx-filename muted" data-fn="todo"></p>
+          </div>
+        </div>
+
+        <div id="tab-manual-todo" class="tab-panel hidden">
+          <p>Tracer un itinéraire <strong>à explorer</strong> (non encore parcouru).</p>
+          <button class="btn btn-primary start-manual" data-kind="todo" type="button">
+            Commencer le tracé
+          </button>
         </div>
       </div>
     </div>
@@ -80,7 +110,7 @@
     <div id="modal-meta" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-card">
         <header class="modal-header">
-          <h2 id="modal-meta-title">Métadonnées de la trace</h2>
+          <h2 id="modal-meta-title">Métadonnées</h2>
           <button class="modal-close" data-close="modal-meta" type="button" aria-label="Fermer">✕</button>
         </header>
         <form id="meta-form" class="form">
@@ -92,9 +122,9 @@
             Auteur
             <input type="text" name="author" maxlength="200" required />
           </label>
-          <label>
+          <label id="confidence-field">
             Niveau de confiance
-            <select name="confidence" required>
+            <select name="confidence">
               <option value="low">Faible</option>
               <option value="medium" selected>Moyen</option>
               <option value="high">Fort</option>

@@ -14,12 +14,16 @@ Outil web permettant à plusieurs personnes d'un voisinage de cartographier coll
 - Ajout d'une trace par **upload de fichier GPX**.
 - Ajout d'une trace en **mode manuel** (clics sur la carte pour poser les points).
 - Métadonnées par trace : **nom**, **date** (par défaut : aujourd'hui), **niveau de confiance** (faible / moyen / fort), **auteur** (champ libre).
-- Affichage des traces sous forme de polylignes colorées :
-  - **Faible** → rouge `#e74c3c`
-  - **Moyen** → orange `#f39c12`
-  - **Fort** → jaune `#f1c40f`
-- **Halo (overlay)** autour de chaque trace : polyligne secondaire plus large (en **pixels**), même couleur, opacité ~0.25, largeur variant selon la confiance (faible : étroit, fort : large). **Approximation visuelle**, pas un buffer géodésique (cf. §6).
-- Liste latérale des traces : nom, auteur, date, confiance, bouton suppression.
+- Affichage des traces de recherche sous forme de polylignes colorées (palette catégorielle à fort écart de teinte) :
+  - **Faible** → rouge `#dc2626`
+  - **Moyen** → bleu `#2563eb`
+  - **Fort** → vert `#16a34a`
+- **Liseré sombre** (`#1a1a1a`, weight 9) systématique sous la ligne couleur des traces vivantes pour garantir la lisibilité sur tout fond (OSM, topo, satellite).
+- **Halo (overlay)** autour de chaque trace de recherche : polyligne secondaire plus large (en **pixels**), même couleur, opacité ~0.4, largeur variant selon la confiance (faible : étroit, fort : large). **Approximation visuelle**, pas un buffer géodésique (cf. §6).
+- **Tracés "à explorer"** (`kind=todo`) : itinéraires suggérés non encore parcourus. Cyan `#06b6d4`, pointillés épais (`dashArray: "12, 10"`), **pas de halo**, **pas de niveau de confiance**. Mêmes mécaniques (mode manuel ou upload GPX, soft-delete).
+- **Sélecteur de fond de carte** en haut-droite : OSM (défaut) / Topographique (OpenTopoMap) / Satellite (Esri World Imagery). Pas de persistance.
+- **Spotlight au survol panneau (desktop)** : au `mouseenter` sur un item de la liste latérale, toutes les autres traces sont grisées (opacité ~0.18, couleur grise), la trace ciblée passe au-dessus et garde sa couleur. Désactivé sur tactile (`(hover: hover) and (pointer: fine)`).
+- Liste latérale des traces : nom, auteur, date, confiance (si pertinent), bouton suppression. Les `todo` portent un tag visuel "à explorer".
 - **Suppression** d'une trace : bouton avec modale de confirmation. Suppression **soft** (cf. §4.5).
 - Persistance en base PostgreSQL.
 - **Mobile-first**.
@@ -56,33 +60,42 @@ Outil web permettant à plusieurs personnes d'un voisinage de cartographier coll
 ### 4.1 Schéma SQL (cible)
 
 Table `traces` :
-- `id` — identifiant (uuid ou bigserial).
+- `id` — UUID généré côté serveur.
 - `name` — texte, non null.
 - `author` — texte, non null.
-- `confidence` — enum / contrainte CHECK parmi `low | medium | high`.
+- `confidence` — texte **NULLABLE** avec CHECK `low | medium | high`. **NULL** pour `kind=todo` (qui n'a pas de niveau de confiance).
 - `recorded_at` — date.
-- `source` — enum / texte (`gpx` | `manual`).
-- `points` — **JSONB**, tableau ordonné de `[lon, lat]` (ou `{lat, lon}`).
-- `bbox` — JSONB ou colonnes séparées (`min_lat`, `min_lon`, `max_lat`, `max_lon`) pour accélérer le `fitBounds`.
+- `source` — texte avec CHECK `gpx | manual`.
+- `kind` — texte NOT NULL DEFAULT `'search'` avec CHECK `search | todo`. `search` = trace d'une zone parcourue, `todo` = itinéraire à explorer.
+- `points` — **JSONB**, tableau ordonné `[[lon, lat], ...]` (style GeoJSON).
+- `bbox` — JSONB `{min_lon, min_lat, max_lon, max_lat}` pour accélérer le `fitBounds`.
 - `created_at` — `TIMESTAMPTZ DEFAULT NOW()`.
 - `deleted_at` — `TIMESTAMPTZ NULL`.
 
 Index recommandés :
 - index partiel sur lectures vivantes : `CREATE INDEX ... ON traces (created_at) WHERE deleted_at IS NULL;`
 
+Migrations : `ALTER TABLE traces ADD COLUMN IF NOT EXISTS kind ...` + `ALTER COLUMN confidence DROP NOT NULL` + contraintes ajoutées via bloc `DO $$` idempotent (cf. `app/schema.py`).
+
 ### 4.2 Endpoints
 
 - `GET /traces`
   - Par défaut : renvoie uniquement les traces avec `deleted_at IS NULL`.
   - Query param `?include_deleted=true` : renvoie aussi les traces soft-deleted.
-  - Chaque trace expose `deleted_at` (null ou ISO 8601) pour permettre au front de distinguer.
+  - Query param `?kind=search` ou `?kind=todo` pour filtrer par type ; absent = les deux.
+  - Chaque trace expose `kind`, `confidence` (peut être null), `deleted_at`.
 - `POST /traces`
-  - Création d'une trace (depuis le mode manuel : JSON ; depuis GPX : `multipart/form-data`).
-- `POST /traces/gpx` (ou même endpoint avec content-type différent — au choix de l'implémentation)
-  - Upload GPX. Limite **1 Mo**. Rejet si contenu non-GPX ou invalide → erreur HTTP claire.
+  - Création d'une trace de recherche (`kind=search`, mode manuel, JSON).
+- `POST /traces/gpx`
+  - Upload GPX pour une trace de recherche (`kind=search`, `multipart/form-data`).
+- `POST /traces/todo`
+  - Création d'un tracé à explorer (`kind=todo`, mode manuel, JSON, sans `confidence`).
+- `POST /traces/todo/gpx`
+  - Upload GPX pour un tracé à explorer (`kind=todo`, sans `confidence`).
+- Limite GPX : **1 Mo**. Rejet si contenu non-GPX ou invalide → erreur HTTP 400/413.
 - `DELETE /traces/{id}`
-  - Soft-delete : `UPDATE traces SET deleted_at = NOW() WHERE id = ...`.
-  - **Idempotent** : re-suppression d'une trace déjà supprimée = no-op (réponse 200/204).
+  - Commun aux deux types. Soft-delete : `UPDATE traces SET deleted_at = NOW() WHERE id = ...`.
+  - **Idempotent** : re-suppression d'une trace déjà supprimée = no-op (204).
 - Servir les assets statiques du front (`/`, `/static/...`).
 
 ### 4.3 Parsing GPX
@@ -106,10 +119,12 @@ Index recommandés :
 
 - Carte plein écran à gauche.
 - Panneau latéral droit (~320 px, repliable sur mobile) :
-  - Bouton **« + Ajouter une trace »** → modale avec deux onglets : *Upload GPX* / *Tracer manuellement*.
+  - Bouton **« + Ajouter »** → modale avec **4 onglets** : *GPX recherche* / *Tracer recherche* / *GPX à explorer* / *Tracer à explorer*.
   - Toggle **« Afficher les traces supprimées »** (cf. §5.4).
-  - Liste des traces : pastille de couleur, nom, auteur, date, bouton suppression.
-- Au chargement : `fitBounds` sur l'union des bbox des **traces non supprimées uniquement**.
+  - Toggle **« Afficher les tracés à explorer »** — **ON par défaut**, non persistant. Quand OFF, refetch avec `?kind=search`.
+  - Liste des traces : pastille de couleur (cyan + bordure dashed pour les `todo`), nom (avec tag `à explorer` pour les `todo`), auteur, date, confiance si pertinent, bouton suppression.
+- **Sélecteur de fond de carte** (contrôle Leaflet `L.control.layers`) en haut-droite : OSM (défaut) / Topographique / Satellite, non persistant.
+- Au chargement : `fitBounds` sur l'union des bbox des **traces non supprimées uniquement** (`search` + `todo` confondus).
 
 ### 5.2 Mode manuel
 
@@ -139,7 +154,15 @@ Index recommandés :
 ### 5.5 Suppression
 
 - Bouton corbeille → modale `« Supprimer la trace "X" ? Cette action est irréversible. »` avec **Annuler** / **Supprimer**.
+- Pour les `todo` : message adapté `« Supprimer le tracé à explorer "X" ? ... »`.
 - Message « irréversible » assumé côté UX : le rollback existe mais c'est une opération DB hors application.
+
+### 5.6 Spotlight au survol (desktop)
+
+- Au `mouseenter` sur un item de la liste latérale : toutes les autres traces sont visuellement atténuées (couleur grise, opacité ~0.18, halo ~0.08), la trace ciblée passe au-dessus (`bringToFront`) et son halo monte à ~0.65.
+- Au `mouseleave` : restauration de l'état normal.
+- Désactivé sur tactile via `matchMedia("(hover: hover) and (pointer: fine)")`.
+- Le clic sur l'item garde le comportement de zoom sur la bbox.
 
 ## 6. Approximation halo / buffer
 

@@ -27,6 +27,11 @@ class Source(str, Enum):
     manual = "manual"
 
 
+class Kind(str, Enum):
+    search = "search"  # trace d'une zone parcourue
+    todo = "todo"      # tracé à explorer (itinéraire suggéré)
+
+
 # Un point = [lon, lat] (style GeoJSON)
 Point = List[float]
 
@@ -45,6 +50,8 @@ def _validate_point(p: Point) -> Point:
 
 
 class TraceCreate(BaseModel):
+    """Création d'une trace de recherche (kind=search)."""
+
     name: str = Field(min_length=1, max_length=MAX_TEXT_LEN)
     author: str = Field(min_length=1, max_length=MAX_TEXT_LEN)
     confidence: Confidence
@@ -63,12 +70,40 @@ class TraceCreate(BaseModel):
         return [_validate_point(p) for p in v]
 
 
+class TodoCreate(BaseModel):
+    """Création d'un tracé à explorer (kind=todo, pas de confiance)."""
+
+    name: str = Field(min_length=1, max_length=MAX_TEXT_LEN)
+    author: str = Field(min_length=1, max_length=MAX_TEXT_LEN)
+    recorded_at: date
+    points: List[Point]
+
+    @field_validator("points")
+    @classmethod
+    def _check_points(cls, v: List[Point]) -> List[Point]:
+        if len(v) < 2:
+            raise ValueError("A trace must contain at least 2 points")
+        if len(v) > MAX_POINTS_PER_TRACE:
+            raise ValueError(
+                f"Too many points (max {MAX_POINTS_PER_TRACE})"
+            )
+        return [_validate_point(p) for p in v]
+
+
 class GpxMetadata(BaseModel):
-    """Métadonnées fournies en multipart à côté du fichier GPX."""
+    """Métadonnées en multipart pour upload GPX d'une trace de recherche."""
 
     name: str = Field(min_length=1, max_length=MAX_TEXT_LEN)
     author: str = Field(min_length=1, max_length=MAX_TEXT_LEN)
     confidence: Confidence
+    recorded_at: date
+
+
+class TodoGpxMetadata(BaseModel):
+    """Métadonnées en multipart pour upload GPX d'un tracé à explorer."""
+
+    name: str = Field(min_length=1, max_length=MAX_TEXT_LEN)
+    author: str = Field(min_length=1, max_length=MAX_TEXT_LEN)
     recorded_at: date
 
 
@@ -83,9 +118,10 @@ class TraceOut(BaseModel):
     id: UUID
     name: str
     author: str
-    confidence: Confidence
+    confidence: Optional[Confidence]
     recorded_at: date
     source: Source
+    kind: Kind
     points: List[Point]
     bbox: BBox
     created_at: datetime

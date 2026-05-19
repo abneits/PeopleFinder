@@ -199,17 +199,46 @@ body {
 .hidden { display: none !important; }
 
 /* ============ Tabs ============ */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid #eee; margin-bottom: 8px; }
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
 .tab {
   background: none;
   border: none;
-  padding: 10px 12px;
+  padding: 10px 10px;
   cursor: pointer;
   color: #555;
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  font-size: 13px;
+  flex: 0 0 auto;
 }
 .tab.active { color: #2c7be5; border-bottom-color: #2c7be5; font-weight: 600; }
 .tab-panel { padding: 4px 0; }
+
+/* ============ Tag todo dans la liste ============ */
+.tag-todo {
+  display: inline-block;
+  background: #cffafe;
+  color: #155e75;
+  border: 1px solid #67e8f9;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  vertical-align: middle;
+}
+.swatch-todo {
+  border: 2px dashed #155e75;
+  background: #06b6d4 !important;
+}
 
 /* ============ Dropzone ============ */
 .dropzone {
