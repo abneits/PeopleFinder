@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    image: peoplefinder:latest
+    container_name: peoplefinder
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgres://user:pass@host:5432/peoplefinder"
