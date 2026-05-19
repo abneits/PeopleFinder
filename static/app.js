@@ -16,8 +16,10 @@
   };
   // Halo en pixels (approximation visuelle, pas un buffer geodesique)
   const HALO_WIDTH_PX = { low: 14, medium: 22, high: 32 };
-  const HALO_OPACITY = 0.25;
-  const LINE_WIDTH_PX = 4;
+  const HALO_OPACITY = 0.4;
+  const LINE_WIDTH_PX = 6;
+  const LINE_OUTLINE_PX = 9;
+  const LINE_OUTLINE_COLOR = "#1a1a1a";
   const DELETED_OPACITY = 0.4;
 
   // ===== Etat global =====
@@ -36,15 +38,47 @@
   };
 
   // ===== Map =====
+  const osmLayer = L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }
+  );
+  const topoLayer = L.tileLayer(
+    "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 17,
+      attribution:
+        'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+    }
+  );
+  const satLayer = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    {
+      maxZoom: 19,
+      attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
+    }
+  );
+
   const map = L.map("map", {
     zoomControl: true,
     doubleClickZoom: false, // on intercepte le double-clic en mode manuel
+    layers: [osmLayer], // OSM par defaut
   }).setView([46.6, 2.5], 6); // France par defaut
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
+  L.control
+    .layers(
+      {
+        OSM: osmLayer,
+        Topographique: topoLayer,
+        Satellite: satLayer,
+      },
+      null,
+      { position: "topright", collapsed: true }
+    )
+    .addTo(map);
 
   // ===== Utilitaires DOM =====
   const $ = (sel) => document.querySelector(sel);
@@ -90,8 +124,9 @@
   function clearTraceLayers() {
     for (const t of state.traces) {
       if (t._layers) {
-        if (t._layers.line) map.removeLayer(t._layers.line);
         if (t._layers.halo) map.removeLayer(t._layers.halo);
+        if (t._layers.outline) map.removeLayer(t._layers.outline);
+        if (t._layers.line) map.removeLayer(t._layers.line);
       }
       t._layers = null;
     }
@@ -106,11 +141,21 @@
       const layers = {};
 
       if (!isDeleted) {
-        // Halo (uniquement si vivante)
+        // Halo (uniquement si vivante) - posé en premier = en dessous
         layers.halo = L.polyline(latlngs, {
           color: color,
           weight: HALO_WIDTH_PX[t.confidence] || 18,
           opacity: HALO_OPACITY,
+          lineCap: "round",
+          lineJoin: "round",
+          interactive: false,
+        }).addTo(map);
+
+        // Liseré sombre sous la ligne couleur pour lisibilité sur tout fond
+        layers.outline = L.polyline(latlngs, {
+          color: LINE_OUTLINE_COLOR,
+          weight: LINE_OUTLINE_PX,
+          opacity: 0.9,
           lineCap: "round",
           lineJoin: "round",
           interactive: false,
@@ -120,7 +165,7 @@
       layers.line = L.polyline(latlngs, {
         color: color,
         weight: LINE_WIDTH_PX,
-        opacity: isDeleted ? DELETED_OPACITY : 0.95,
+        opacity: isDeleted ? DELETED_OPACITY : 1.0,
         dashArray: isDeleted ? "6, 8" : null,
         lineCap: "round",
         lineJoin: "round",

@@ -51,7 +51,7 @@ body {
 
 #panel-toggle {
   position: absolute;
-  top: 10px;
+  top: 70px; /* sous le contrôle de calques Leaflet (top-right) */
   right: 10px;
   z-index: 999;
   width: 44px;
