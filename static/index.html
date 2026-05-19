@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>PeopleFinder</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="map"></div>
+
+    <button id="panel-toggle" type="button" aria-label="Ouvrir le panneau">☰</button>
+
+    <aside id="panel" aria-label="Panneau des traces">
+      <header class="panel-header">
+        <h1>PeopleFinder</h1>
+        <button id="panel-close" type="button" aria-label="Fermer le panneau">✕</button>
+      </header>
+
+      <div class="panel-section">
+        <button id="btn-add" class="btn btn-primary" type="button">+ Ajouter une trace</button>
+      </div>
+
+      <div class="panel-section">
+        <label class="toggle">
+          <input type="checkbox" id="toggle-show-deleted" />
+          <span>Afficher les traces supprimées</span>
+        </label>
+      </div>
+
+      <div class="panel-section">
+        <h2 class="section-title">Traces</h2>
+        <ul id="trace-list" class="trace-list"></ul>
+        <p id="trace-empty" class="muted">Aucune trace pour le moment.</p>
+      </div>
+    </aside>
+
+    <!-- Bandeau d'aide du mode manuel -->
+    <div id="manual-banner" class="banner hidden">
+      <span class="banner-text">
+        Mode manuel : clic = point, double-clic sur un point = annule le dernier.
+      </span>
+      <div class="banner-actions">
+        <button id="manual-finish" class="btn btn-primary" type="button" disabled>Terminer</button>
+        <button id="manual-cancel" class="btn" type="button">Annuler</button>
+      </div>
+    </div>
+
+    <!-- Modale: choix d'ajout -->
+    <div id="modal-add" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <header class="modal-header">
+          <h2>Ajouter une trace</h2>
+          <button class="modal-close" data-close="modal-add" type="button" aria-label="Fermer">✕</button>
+        </header>
+        <div class="tabs">
+          <button class="tab active" data-tab="tab-gpx" type="button">Upload GPX</button>
+          <button class="tab" data-tab="tab-manual" type="button">Tracer manuellement</button>
+        </div>
+        <div id="tab-gpx" class="tab-panel">
+          <div id="dropzone" class="dropzone">
+            <p>Glissez un fichier GPX ici ou</p>
+            <label class="btn">
+              Choisir un fichier
+              <input type="file" id="gpx-file" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden />
+            </label>
+            <p id="gpx-filename" class="muted"></p>
+          </div>
+        </div>
+        <div id="tab-manual" class="tab-panel hidden">
+          <p>Vous allez dessiner la trace directement sur la carte.</p>
+          <button id="start-manual" class="btn btn-primary" type="button">Commencer le tracé</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modale: métadonnées -->
+    <div id="modal-meta" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <header class="modal-header">
+          <h2 id="modal-meta-title">Métadonnées de la trace</h2>
+          <button class="modal-close" data-close="modal-meta" type="button" aria-label="Fermer">✕</button>
+        </header>
+        <form id="meta-form" class="form">
+          <label>
+            Nom
+            <input type="text" name="name" maxlength="200" required />
+          </label>
+          <label>
+            Auteur
+            <input type="text" name="author" maxlength="200" required />
+          </label>
+          <label>
+            Niveau de confiance
+            <select name="confidence" required>
+              <option value="low">Faible</option>
+              <option value="medium" selected>Moyen</option>
+              <option value="high">Fort</option>
+            </select>
+          </label>
+          <label>
+            Date
+            <input type="date" name="recorded_at" required />
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn" data-close="modal-meta">Annuler</button>
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+          </div>
+          <p id="meta-error" class="error hidden"></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modale: confirmation suppression -->
+    <div id="modal-delete" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <header class="modal-header">
+          <h2>Supprimer la trace</h2>
+          <button class="modal-close" data-close="modal-delete" type="button" aria-label="Fermer">✕</button>
+        </header>
+        <p id="modal-delete-text">Supprimer la trace ? Cette action est irréversible.</p>
+        <div class="form-actions">
+          <button type="button" class="btn" data-close="modal-delete">Annuler</button>
+          <button type="button" id="confirm-delete" class="btn btn-danger">Supprimer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast erreur générique -->
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

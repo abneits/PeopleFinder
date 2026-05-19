@@ -1,0 +1,267 @@
+/* PeopleFinder — mobile-first */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  color: #222;
+  background: #f4f4f4;
+}
+
+#app { position: relative; width: 100%; height: 100%; }
+
+#map { position: absolute; inset: 0; }
+
+/* ============ Panneau latéral ============ */
+
+#panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  background: #fff;
+  box-shadow: -2px 0 12px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  transform: translateX(100%);
+  transition: transform 0.25s ease-out;
+  overflow-y: auto;
+}
+#panel.open { transform: translateX(0); }
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+.panel-header h1 { font-size: 18px; margin: 0; }
+
+.panel-section { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; }
+.section-title { font-size: 13px; text-transform: uppercase; color: #777; margin: 0 0 8px; letter-spacing: 0.5px; }
+
+#panel-toggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 999;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: none;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  font-size: 20px;
+  cursor: pointer;
+}
+#panel-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #555;
+}
+
+/* ============ Toggle ============ */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input { width: 18px; height: 18px; }
+
+/* ============ Liste traces ============ */
+.trace-list { list-style: none; padding: 0; margin: 0; }
+.trace-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f3f3;
+}
+.trace-item:last-child { border-bottom: none; }
+.trace-color {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex: 0 0 14px;
+}
+.trace-meta { flex: 1; min-width: 0; }
+.trace-name { font-weight: 600; }
+.trace-sub { font-size: 12px; color: #666; }
+.trace-deleted .trace-name { text-decoration: line-through; color: #999; }
+.trace-deleted .trace-sub { color: #999; }
+.trace-actions { display: flex; }
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #888;
+  font-size: 18px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.btn-icon:hover { background: #f3f3f3; color: #c0392b; }
+.muted { color: #888; font-size: 13px; margin: 4px 0 0; }
+#trace-empty { padding: 0; }
+
+/* ============ Boutons ============ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #d0d0d0;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  color: #222;
+}
+.btn:hover { background: #f6f6f6; }
+.btn-primary { background: #2c7be5; color: #fff; border-color: #2c7be5; }
+.btn-primary:hover { background: #1f64c1; }
+.btn-primary:disabled { background: #9bbce6; border-color: #9bbce6; cursor: not-allowed; }
+.btn-danger { background: #c0392b; color: #fff; border-color: #c0392b; }
+.btn-danger:hover { background: #a32c20; }
+
+#btn-add { width: 100%; }
+
+/* ============ Bandeau mode manuel ============ */
+.banner {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  padding: 12px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.banner-text { font-size: 13px; color: #333; }
+.banner-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ============ Modales ============ */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-card {
+  background: #fff;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h2 { margin: 0; font-size: 17px; }
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #777;
+}
+
+.hidden { display: none !important; }
+
+/* ============ Tabs ============ */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid #eee; margin-bottom: 8px; }
+.tab {
+  background: none;
+  border: none;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #555;
+  border-bottom: 2px solid transparent;
+}
+.tab.active { color: #2c7be5; border-bottom-color: #2c7be5; font-weight: 600; }
+.tab-panel { padding: 4px 0; }
+
+/* ============ Dropzone ============ */
+.dropzone {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.dropzone.dragover { border-color: #2c7be5; background: #f0f6ff; }
+
+/* ============ Form ============ */
+.form { display: flex; flex-direction: column; gap: 10px; }
+.form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #444; }
+.form input, .form select {
+  padding: 9px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 15px;
+  font-family: inherit;
+}
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.error { color: #c0392b; font-size: 13px; margin: 0; }
+
+/* ============ Toast ============ */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  z-index: 3000;
+  max-width: 90%;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+
+/* ============ Desktop ============ */
+@media (min-width: 768px) {
+  #panel {
+    width: 340px;
+    transform: translateX(0); /* visible par défaut sur desktop */
+    box-shadow: -2px 0 12px rgba(0,0,0,0.08);
+  }
+  #panel-toggle { display: none; }
+  #map { right: 340px; }
+  .banner { left: 16px; right: 356px; flex-direction: row; align-items: center; justify-content: space-between; }
+  .banner-actions { margin-left: auto; }
+}
