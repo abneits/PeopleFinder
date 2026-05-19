@@ -4,11 +4,11 @@
   "use strict";
 
   // ===== Constantes couleurs =====
-  // Palette categorielle : rouge / bleu / vert (ecart de teinte max)
+  // Palette ordinale chaude : orange clair -> rouge sombre
   const COLORS = {
-    low: "#dc2626",     // rouge - confiance faible
-    medium: "#2563eb",  // bleu - confiance moyenne
-    high: "#16a34a",    // vert - confiance forte
+    low: "#fb923c",     // orange clair - confiance faible
+    medium: "#ef4444",  // rouge vif - confiance moyenne
+    high: "#991b1b",    // rouge sombre - confiance forte
   };
   const TODO_COLOR = "#06b6d4"; // cyan pour les traces "a explorer"
   const CONFIDENCE_LABEL = {
@@ -28,8 +28,9 @@
   const DIMMED_LINE_OPACITY = 0.18;
   const DIMMED_LINE_COLOR = "#9ca3af";
   const TODO_DASH = "12, 10";
+  const LIST_LIMIT = 5;
 
-  // Detection desktop (hover possible) pour activer le spotlight
+  // Detection desktop (hover possible) pour activer le spotlight hover
   const HAS_HOVER =
     typeof window.matchMedia === "function" &&
     window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -38,20 +39,17 @@
   const state = {
     traces: [],            // [{ ...trace, _layers: {...} }]
     showDeleted: false,
-    showTodo: true,
     manualMode: false,
     manualKind: null,      // 'search' | 'todo' quand actif
     manualPoints: [],      // [[lat, lng], ...]
-    manualLayers: {
-      polyline: null,
-      markers: [],         // L.circleMarker par point
-    },
+    manualLayers: { polyline: null, markers: [] },
     pendingGpxFile: null,
     pendingGpxKind: null,  // 'search' | 'todo'
     metaKind: null,        // 'search' | 'todo' au moment de la modale meta
     metaSource: null,      // 'manual' | 'gpx'
     deletionTarget: null,
-    highlighted: null,     // id de la trace actuellement highlightee
+    selectedId: null,      // id de la trace s\u00e9lectionn\u00e9e sur la carte (persistant)
+    hoveredId: null,       // id de la trace survol\u00e9e dans le panneau
   };
 
   // ===== Map et calques de fond =====
@@ -82,7 +80,7 @@
 
   const map = L.map("map", {
     zoomControl: true,
-    doubleClickZoom: false, // on intercepte le double-clic en mode manuel
+    doubleClickZoom: false,
     layers: [osmLayer],
   }).setView([46.6, 2.5], 6);
 
@@ -129,7 +127,6 @@
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  // GeoJSON points = [lon, lat], Leaflet veut [lat, lon]
   function toLeafletLatLngs(points) {
     return points.map((p) => [p[1], p[0]]);
   }
@@ -145,7 +142,11 @@
     return COLORS[t.confidence] || "#888";
   }
 
-  // ===== Rendu des traces =====
+  function findTraceById(id) {
+    return state.traces.find((t) => t.id === id) || null;
+  }
+
+  // ===== Rendu des traces sur la carte =====
   function clearTraceLayers() {
     for (const t of state.traces) {
       if (t._layers) {
@@ -165,7 +166,6 @@
       const latlngs = toLeafletLatLngs(t.points);
       const layers = {};
 
-      // Halo : uniquement pour les traces de recherche vivantes
       if (!isDeleted && !isTodo) {
         layers.halo = L.polyline(latlngs, {
           color: color,
@@ -177,7 +177,6 @@
         }).addTo(map);
       }
 
-      // Liseré sombre : sous la ligne couleur, pour vivantes (search ou todo)
       if (!isDeleted) {
         layers.outline = L.polyline(latlngs, {
           color: LINE_OUTLINE_COLOR,
@@ -189,11 +188,11 @@
         }).addTo(map);
       }
 
-      // Ligne couleur principale
       let dashArray = null;
       if (isDeleted) dashArray = "6, 8";
       else if (isTodo) dashArray = TODO_DASH;
 
+      // Les supprim\u00e9es ne sont pas interactives (pas de selection possible)
       layers.line = L.polyline(latlngs, {
         color: color,
         weight: LINE_WIDTH_PX,
@@ -201,12 +200,20 @@
         dashArray: dashArray,
         lineCap: "round",
         lineJoin: "round",
+        interactive: !isDeleted,
       }).addTo(map);
 
-      const typeLabel = isTodo ? " (à explorer)" : "";
+      if (!isDeleted) {
+        layers.line.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          selectTrace(t.id);
+        });
+      }
+
+      const typeLabel = isTodo ? " (\u00e0 explorer)" : "";
       layers.line.bindTooltip(
         `<strong>${escapeHtml(t.name)}${typeLabel}</strong><br>` +
-          `${escapeHtml(t.author)} · ${formatDateFR(t.recorded_at)}`,
+          `${escapeHtml(t.author)} \u00b7 ${formatDateFR(t.recorded_at)}`,
         { sticky: true }
       );
 
@@ -230,38 +237,7 @@
     map.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [40, 40] });
   }
 
-  // ===== Highlight (spotlight) au survol panneau =====
-  function highlightTrace(target) {
-    if (!HAS_HOVER) return;
-    if (!target || !target._layers) return;
-    state.highlighted = target.id;
-    for (const t of state.traces) {
-      if (!t._layers) continue;
-      if (t.id === target.id) {
-        // remettre l'etat normal (au cas ou)
-        applyNormalStyle(t);
-        // amener en avant
-        if (t._layers.halo) t._layers.halo.bringToFront();
-        if (t._layers.outline) t._layers.outline.bringToFront();
-        if (t._layers.line) t._layers.line.bringToFront();
-        // renforcer le halo si present
-        if (t._layers.halo) {
-          t._layers.halo.setStyle({ opacity: HALO_OPACITY_HIGHLIGHT });
-        }
-      } else {
-        applyDimmedStyle(t);
-      }
-    }
-  }
-
-  function unhighlightAll() {
-    if (!HAS_HOVER) return;
-    state.highlighted = null;
-    for (const t of state.traces) {
-      applyNormalStyle(t);
-    }
-  }
-
+  // ===== Spotlight (hover ou selection) =====
   function applyNormalStyle(t) {
     if (!t._layers) return;
     const isDeleted = !!t.deleted_at;
@@ -296,23 +272,121 @@
     }
   }
 
-  // ===== Liste laterale =====
-  function renderList() {
-    const ul = $("#trace-list");
-    const empty = $("#trace-empty");
-    ul.innerHTML = "";
-    if (state.traces.length === 0) {
-      empty.classList.remove("hidden");
+  // Recalcule l'affichage selon l'etat (selection persistante > hover)
+  function refreshSpotlight() {
+    const focusId = state.selectedId || state.hoveredId;
+    if (!focusId) {
+      for (const t of state.traces) applyNormalStyle(t);
       return;
     }
-    empty.classList.add("hidden");
     for (const t of state.traces) {
+      if (!t._layers) continue;
+      if (t.id === focusId) {
+        applyNormalStyle(t);
+        if (t._layers.halo) {
+          t._layers.halo.setStyle({ opacity: HALO_OPACITY_HIGHLIGHT });
+          t._layers.halo.bringToFront();
+        }
+        if (t._layers.outline) t._layers.outline.bringToFront();
+        if (t._layers.line) t._layers.line.bringToFront();
+      } else {
+        applyDimmedStyle(t);
+      }
+    }
+  }
+
+  function highlightTraceHover(id) {
+    if (!HAS_HOVER) return;
+    state.hoveredId = id;
+    refreshSpotlight();
+    syncListSelection();
+  }
+  function unhighlightHover() {
+    if (!HAS_HOVER) return;
+    state.hoveredId = null;
+    refreshSpotlight();
+    syncListSelection();
+  }
+
+  // ===== Selection persistante via clic carte =====
+  function selectTrace(id) {
+    state.selectedId = id;
+    const t = findTraceById(id);
+    if (!t) return;
+    refreshSpotlight();
+    syncListSelection();
+    openTracePopup(t);
+  }
+
+  function deselectTrace() {
+    state.selectedId = null;
+    map.closePopup();
+    refreshSpotlight();
+    syncListSelection();
+  }
+
+  function openTracePopup(t) {
+    if (!t._layers || !t._layers.line) return;
+    // Position : centre de la bbox de la trace (ou centre des points)
+    const latlngs = t._layers.line.getLatLngs();
+    let popupLatLng = latlngs[Math.floor(latlngs.length / 2)];
+    if (!popupLatLng) popupLatLng = latlngs[0];
+
+    const isTodo = t.kind === "todo";
+    const lines = [];
+    lines.push(`<div class="popup-title">${escapeHtml(t.name)}</div>`);
+    const subParts = [escapeHtml(t.author), formatDateFR(t.recorded_at)];
+    if (!isTodo && t.confidence) {
+      subParts.push(CONFIDENCE_LABEL[t.confidence] || t.confidence);
+    }
+    if (isTodo) subParts.push("\u00e0 explorer");
+    lines.push(`<div class="popup-sub">${subParts.join(" \u00b7 ")}</div>`);
+    lines.push(
+      '<div class="popup-actions">' +
+        '<button type="button" class="btn btn-danger popup-delete">Supprimer</button>' +
+        '<button type="button" class="btn popup-close">Fermer</button>' +
+        '</div>'
+    );
+
+    const container = document.createElement("div");
+    container.className = "popup-content";
+    container.innerHTML = lines.join("");
+    container.querySelector(".popup-delete").addEventListener("click", () => {
+      openDeleteModal(t);
+    });
+    container.querySelector(".popup-close").addEventListener("click", () => {
+      deselectTrace();
+    });
+
+    L.popup({ closeButton: false, autoClose: false, closeOnClick: false })
+      .setLatLng(popupLatLng)
+      .setContent(container)
+      .openOn(map);
+  }
+
+  // ===== Liste laterale (2 sections, 5 derniers chacun) =====
+  function renderLists() {
+    const alive = state.traces.filter((t) => !t.deleted_at);
+    const searchAlive = alive.filter((t) => t.kind !== "todo").slice(0, LIST_LIMIT);
+    const todoAlive = alive.filter((t) => t.kind === "todo").slice(0, LIST_LIMIT);
+
+    renderListInto($("#search-list"), $(".search-empty"), searchAlive);
+    renderListInto($("#todo-list"), $(".todo-empty"), todoAlive);
+    syncListSelection();
+  }
+
+  function renderListInto(ul, emptyEl, traces) {
+    ul.innerHTML = "";
+    if (traces.length === 0) {
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+    emptyEl.classList.add("hidden");
+    for (const t of traces) {
       const isTodo = t.kind === "todo";
       const li = document.createElement("li");
-      li.className =
-        "trace-item" +
-        (t.deleted_at ? " trace-deleted" : "") +
-        (isTodo ? " trace-todo" : "");
+      li.className = "trace-item" + (isTodo ? " trace-todo" : "");
+      li.dataset.traceId = t.id;
 
       const swatch = document.createElement("span");
       swatch.className = "trace-color";
@@ -324,15 +398,7 @@
 
       const name = document.createElement("div");
       name.className = "trace-name";
-      if (isTodo) {
-        const tag = document.createElement("span");
-        tag.className = "tag-todo";
-        tag.textContent = "à explorer";
-        name.appendChild(tag);
-        name.appendChild(document.createTextNode(" " + t.name));
-      } else {
-        name.textContent = t.name;
-      }
+      name.textContent = t.name;
 
       const sub = document.createElement("div");
       sub.className = "trace-sub";
@@ -340,11 +406,7 @@
       if (!isTodo && t.confidence) {
         parts.push(CONFIDENCE_LABEL[t.confidence] || t.confidence);
       }
-      let subText = parts.join(" · ");
-      if (t.deleted_at) {
-        subText += ` · (supprimée le ${formatDateFR(t.deleted_at)})`;
-      }
-      sub.textContent = subText;
+      sub.textContent = parts.join(" \u00b7 ");
 
       meta.appendChild(name);
       meta.appendChild(sub);
@@ -352,48 +414,40 @@
       li.appendChild(swatch);
       li.appendChild(meta);
 
-      // Pas de bouton de suppression sur les traces deja supprimees
-      if (!t.deleted_at) {
-        const actions = document.createElement("div");
-        actions.className = "trace-actions";
-        const btn = document.createElement("button");
-        btn.className = "btn-icon";
-        btn.title = "Supprimer";
-        btn.setAttribute("aria-label", "Supprimer cette trace");
-        btn.textContent = "🗑";
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          openDeleteModal(t);
-        });
-        actions.appendChild(btn);
-        li.appendChild(actions);
-      }
-
-      // Click = zoom sur la bbox
-      meta.style.cursor = "pointer";
-      meta.addEventListener("click", () => {
-        if (!t.bbox) return;
-        map.fitBounds(
-          [[t.bbox.min_lat, t.bbox.min_lon], [t.bbox.max_lat, t.bbox.max_lon]],
-          { padding: [40, 40] }
-        );
+      // Clic = selectionne la trace (m\u00eame logique que clic carte)
+      li.style.cursor = "pointer";
+      li.addEventListener("click", () => {
+        // Zoom + selection
+        if (t.bbox) {
+          map.fitBounds(
+            [[t.bbox.min_lat, t.bbox.min_lon], [t.bbox.max_lat, t.bbox.max_lon]],
+            { padding: [40, 40] }
+          );
+        }
+        selectTrace(t.id);
       });
 
-      // Hover = spotlight (desktop uniquement)
       if (HAS_HOVER) {
-        li.addEventListener("mouseenter", () => highlightTrace(t));
-        li.addEventListener("mouseleave", () => unhighlightAll());
+        li.addEventListener("mouseenter", () => highlightTraceHover(t.id));
+        li.addEventListener("mouseleave", () => unhighlightHover());
       }
 
       ul.appendChild(li);
     }
   }
 
+  function syncListSelection() {
+    const focusId = state.selectedId || state.hoveredId;
+    $$(".trace-item").forEach((li) => {
+      const id = li.dataset.traceId;
+      li.classList.toggle("selected", id === focusId);
+    });
+  }
+
   // ===== Fetch =====
   async function loadTraces() {
     const params = new URLSearchParams();
     if (state.showDeleted) params.set("include_deleted", "true");
-    if (!state.showTodo) params.set("kind", "search");
     const url = "/traces" + (params.toString() ? "?" + params.toString() : "");
     let data;
     try {
@@ -405,10 +459,16 @@
       console.error(err);
       return;
     }
+    // Si la trace selectionnee disparait du resultat, deselectionner
+    if (state.selectedId && !data.some((t) => t.id === state.selectedId)) {
+      state.selectedId = null;
+      map.closePopup();
+    }
     clearTraceLayers();
     state.traces = data;
     renderTraceLayers();
-    renderList();
+    renderLists();
+    refreshSpotlight();
   }
 
   async function postManualTrace(kind, payload) {
@@ -457,50 +517,17 @@
     return txt;
   }
 
-  // ===== Modale "ajouter" =====
-  $("#btn-add").addEventListener("click", () => {
-    // reset des champs GPX
-    $$(".gpx-file-input").forEach((i) => (i.value = ""));
-    $$(".gpx-filename").forEach((p) => (p.textContent = ""));
-    state.pendingGpxFile = null;
-    state.pendingGpxKind = null;
-    activateTab("tab-gpx-search");
-    showModal("modal-add");
-  });
-
-  $$("[data-close]").forEach((el) => {
-    el.addEventListener("click", () => hideModal(el.getAttribute("data-close")));
-  });
-
-  $$(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => activateTab(tab.getAttribute("data-tab")));
-  });
-
-  function activateTab(id) {
-    $$(".tab").forEach((t) =>
-      t.classList.toggle("active", t.getAttribute("data-tab") === id)
-    );
-    $$(".tab-panel").forEach((p) => p.classList.toggle("hidden", p.id !== id));
-  }
-
-  // ===== Upload GPX =====
-  $$(".dropzone").forEach((dz) => {
-    const kind = dz.getAttribute("data-dz");
-    ["dragenter", "dragover"].forEach((evt) => {
-      dz.addEventListener(evt, (e) => {
-        e.preventDefault();
-        dz.classList.add("dragover");
-      });
-    });
-    ["dragleave", "drop"].forEach((evt) => {
-      dz.addEventListener(evt, (e) => {
-        e.preventDefault();
-        dz.classList.remove("dragover");
-      });
-    });
-    dz.addEventListener("drop", (e) => {
-      const file = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (file) handleGpxFileSelected(file, kind);
+  // ===== Boutons d'ajout (action directe) =====
+  $$(".btn-upload-gpx").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const kind = btn.getAttribute("data-kind");
+      const input = document.querySelector(
+        `.gpx-file-input[data-kind="${kind}"]`
+      );
+      if (input) {
+        input.value = "";
+        input.click();
+      }
     });
   });
 
@@ -512,6 +539,13 @@
     });
   });
 
+  $$(".btn-start-manual").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const kind = btn.getAttribute("data-kind");
+      startManualMode(kind);
+    });
+  });
+
   function handleGpxFileSelected(file, kind) {
     if (file.size > 1024 * 1024) {
       toast("Fichier GPX trop volumineux (max 1 Mo)", "error");
@@ -519,22 +553,18 @@
     }
     state.pendingGpxFile = file;
     state.pendingGpxKind = kind;
-    const fnEl = document.querySelector(`.gpx-filename[data-fn="${kind}"]`);
-    if (fnEl) fnEl.textContent = file.name;
-    hideModal("modal-add");
     openMetaModal("gpx", kind);
   }
 
-  // ===== Mode manuel =====
-  $$(".start-manual").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const kind = btn.getAttribute("data-kind");
-      hideModal("modal-add");
-      startManualMode(kind);
-    });
+  // ===== Fermeture des modales =====
+  $$("[data-close]").forEach((el) => {
+    el.addEventListener("click", () => hideModal(el.getAttribute("data-close")));
   });
 
+  // ===== Mode manuel =====
   function startManualMode(kind) {
+    // Quitter une eventuelle selection
+    if (state.selectedId) deselectTrace();
     state.manualMode = true;
     state.manualKind = kind;
     state.manualPoints = [];
@@ -550,7 +580,7 @@
     const bannerText = $("#manual-banner-text");
     bannerText.textContent =
       kind === "todo"
-        ? "Tracé à explorer : clic = point, double-clic sur un point = annule le dernier."
+        ? "Trac\u00e9 \u00e0 explorer : clic = point, double-clic sur un point = annule le dernier."
         : "Mode manuel : clic = point, double-clic sur un point = annule le dernier.";
     banner.classList.remove("hidden");
     $("#manual-finish").disabled = true;
@@ -601,21 +631,34 @@
     }
   }
 
+  // Click sur la carte : soit ajout point (mode manuel), soit deselection
   map.on("click", (e) => {
-    if (!state.manualMode) return;
-    addManualPoint(e.latlng);
+    if (state.manualMode) {
+      addManualPoint(e.latlng);
+      return;
+    }
+    if (state.selectedId) {
+      deselectTrace();
+    }
   });
 
-  $("#manual-cancel").addEventListener("click", () => {
-    exitManualMode();
-  });
-
+  $("#manual-cancel").addEventListener("click", () => exitManualMode());
   $("#manual-finish").addEventListener("click", () => {
     if (state.manualPoints.length < 2) {
       toast("Une trace doit avoir au moins 2 points", "error");
       return;
     }
     openMetaModal("manual", state.manualKind);
+  });
+
+  // Echap = desactiver selection / mode manuel
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (state.manualMode) {
+      exitManualMode();
+    } else if (state.selectedId) {
+      deselectTrace();
+    }
   });
 
   // ===== Modale metadonnees =====
@@ -631,7 +674,6 @@
     $("#meta-error").classList.add("hidden");
     $("#meta-error").textContent = "";
 
-    // Masquer le champ confidence pour kind=todo
     const confField = $("#confidence-field");
     if (kind === "todo") {
       confField.classList.add("hidden");
@@ -645,11 +687,11 @@
     if (kind === "todo") {
       title.textContent =
         source === "gpx"
-          ? "Métadonnées (GPX à explorer)"
-          : "Métadonnées du tracé à explorer";
+          ? "M\u00e9tadonn\u00e9es (GPX \u00e0 explorer)"
+          : "M\u00e9tadonn\u00e9es du trac\u00e9 \u00e0 explorer";
     } else {
       title.textContent =
-        source === "gpx" ? "Métadonnées (GPX)" : "Métadonnées du tracé";
+        source === "gpx" ? "M\u00e9tadonn\u00e9es (GPX)" : "M\u00e9tadonn\u00e9es du trac\u00e9";
     }
     showModal("modal-meta");
   }
@@ -679,19 +721,18 @@
 
     try {
       if (source === "gpx") {
-        if (!state.pendingGpxFile) throw new Error("Aucun fichier GPX sélectionné");
+        if (!state.pendingGpxFile) throw new Error("Aucun fichier GPX s\u00e9lectionn\u00e9");
         await postGpxTrace(kind, state.pendingGpxFile, meta);
         state.pendingGpxFile = null;
         state.pendingGpxKind = null;
       } else {
-        // manuel: points [[lat, lng]] -> [[lon, lat]]
         const points = state.manualPoints.map(([lat, lng]) => [lng, lat]);
         await postManualTrace(kind, { ...meta, points });
         exitManualMode();
       }
       hideModal("modal-meta");
       await loadTraces();
-      toast(kind === "todo" ? "Tracé à explorer ajouté." : "Trace ajoutée.");
+      toast(kind === "todo" ? "Trac\u00e9 \u00e0 explorer ajout\u00e9." : "Trace ajout\u00e9e.");
     } catch (err) {
       console.error(err);
       showMetaError(err.message || "Erreur lors de l'enregistrement");
@@ -707,9 +748,9 @@
   // ===== Modale suppression =====
   function openDeleteModal(trace) {
     state.deletionTarget = trace;
-    const label = trace.kind === "todo" ? "le tracé à explorer" : "la trace";
+    const label = trace.kind === "todo" ? "le trac\u00e9 \u00e0 explorer" : "la trace";
     $("#modal-delete-text").textContent =
-      `Supprimer ${label} "${trace.name}" ? Cette action est irréversible.`;
+      `Supprimer ${label} "${trace.name}" ? Cette action est irr\u00e9versible.`;
     showModal("modal-delete");
   }
   $("#confirm-delete").addEventListener("click", async () => {
@@ -719,20 +760,19 @@
       await deleteTrace(t.id);
       hideModal("modal-delete");
       state.deletionTarget = null;
+      // Fermer le popup et la selection avant refresh
+      state.selectedId = null;
+      map.closePopup();
       await loadTraces();
-      toast("Trace supprimée.");
+      toast("Trace supprim\u00e9e.");
     } catch (err) {
       toast(err.message || "Erreur lors de la suppression", "error");
     }
   });
 
-  // ===== Toggles =====
+  // ===== Toggle "afficher supprimees" =====
   $("#toggle-show-deleted").addEventListener("change", async (e) => {
     state.showDeleted = e.target.checked;
-    await loadTraces();
-  });
-  $("#toggle-show-todo").addEventListener("change", async (e) => {
-    state.showTodo = e.target.checked;
     await loadTraces();
   });
 

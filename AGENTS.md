@@ -36,8 +36,8 @@ Carte web collaborative pour cartographier les zones déjà parcourues lors de l
 - **Lectures filtrent `deleted_at IS NULL` par défaut**. Inclusion via query param `?include_deleted=true` sur `GET /traces`. La réponse expose `deleted_at` (null ou ISO 8601) pour que le front distingue.
 - `DELETE /traces/{id}` est idempotent (re-suppression = no-op).
 - Le **halo** autour d'une trace de recherche est une polyligne Leaflet plus large en **pixels**, opacité ~0.4, avec un **liseré sombre** (`#1a1a1a`, weight 9) posé sous la ligne couleur pour visibilité sur fond satellite. Ce n'est **pas** un buffer géodésique — pas de turf.js, pas de `ST_Buffer`.
-- **Couleurs imposées** (palette catégorielle rouge/bleu/vert, fort écart de teinte), ne pas réinventer :
-  - faible `#dc2626` (rouge), moyen `#2563eb` (bleu), fort `#16a34a` (vert).
+- **Couleurs imposées** (palette ordinale chaude, dégradé orange → rouge sombre), ne pas réinventer :
+  - faible `#fb923c` (orange clair), moyen `#ef4444` (rouge vif), fort `#991b1b` (rouge sombre).
 - **Tracés "à explorer"** (kind=todo) : cyan `#06b6d4`, pointillés épais (`dashArray: "12, 10"`), **pas de halo**, pas de niveau de confiance.
 - **Mobile-first** (pas juste responsive en bonus).
 - Au chargement : `fitBounds` sur l'union des bbox des traces **non supprimées** uniquement.

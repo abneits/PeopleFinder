@@ -198,60 +198,62 @@ body {
 
 .hidden { display: none !important; }
 
-/* ============ Tabs ============ */
-.tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid #eee;
-  margin-bottom: 8px;
-  overflow-x: auto;
-  scrollbar-width: thin;
+/* ============ Boutons d'action par section ============ */
+.action-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
 }
-.tab {
-  background: none;
-  border: none;
-  padding: 10px 10px;
-  cursor: pointer;
-  color: #555;
-  border-bottom: 2px solid transparent;
-  white-space: nowrap;
-  font-size: 13px;
-  flex: 0 0 auto;
-}
-.tab.active { color: #2c7be5; border-bottom-color: #2c7be5; font-weight: 600; }
-.tab-panel { padding: 4px 0; }
+.action-buttons .btn { width: 100%; font-size: 13px; padding: 8px 6px; }
 
-/* ============ Tag todo dans la liste ============ */
-.tag-todo {
-  display: inline-block;
-  background: #cffafe;
-  color: #155e75;
-  border: 1px solid #67e8f9;
-  border-radius: 4px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  vertical-align: middle;
-}
+/* ============ Swatch todo dans la liste ============ */
 .swatch-todo {
   border: 2px dashed #155e75;
   background: #06b6d4 !important;
 }
 
-/* ============ Dropzone ============ */
-.dropzone {
-  border: 2px dashed #ccc;
-  border-radius: 8px;
-  padding: 20px;
-  text-align: center;
+/* ============ Item selectionne dans la liste ============ */
+.trace-item.selected {
+  background: #fff7ed;
+  border-radius: 6px;
+  margin-left: -8px;
+  margin-right: -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.trace-todo.selected {
+  background: #ecfeff;
+}
+
+/* ============ Popup Leaflet ============ */
+.popup-content {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 200px;
 }
-.dropzone.dragover { border-color: #2c7be5; background: #f0f6ff; }
+.popup-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #222;
+}
+.popup-sub {
+  font-size: 12px;
+  color: #666;
+}
+.popup-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.popup-actions .btn {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.leaflet-popup-content-wrapper { border-radius: 8px; }
+.leaflet-popup-content { margin: 10px 12px; }
 
 /* ============ Form ============ */
 .form { display: flex; flex-direction: column; gap: 10px; }

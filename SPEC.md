@@ -14,10 +14,10 @@ Outil web permettant à plusieurs personnes d'un voisinage de cartographier coll
 - Ajout d'une trace par **upload de fichier GPX**.
 - Ajout d'une trace en **mode manuel** (clics sur la carte pour poser les points).
 - Métadonnées par trace : **nom**, **date** (par défaut : aujourd'hui), **niveau de confiance** (faible / moyen / fort), **auteur** (champ libre).
-- Affichage des traces de recherche sous forme de polylignes colorées (palette catégorielle à fort écart de teinte) :
-  - **Faible** → rouge `#dc2626`
-  - **Moyen** → bleu `#2563eb`
-  - **Fort** → vert `#16a34a`
+- Affichage des traces de recherche sous forme de polylignes colorées (palette ordinale chaude, dégradé orange → rouge sombre) :
+  - **Faible** → orange clair `#fb923c`
+  - **Moyen** → rouge vif `#ef4444`
+  - **Fort** → rouge sombre `#991b1b`
 - **Liseré sombre** (`#1a1a1a`, weight 9) systématique sous la ligne couleur des traces vivantes pour garantir la lisibilité sur tout fond (OSM, topo, satellite).
 - **Halo (overlay)** autour de chaque trace de recherche : polyligne secondaire plus large (en **pixels**), même couleur, opacité ~0.4, largeur variant selon la confiance (faible : étroit, fort : large). **Approximation visuelle**, pas un buffer géodésique (cf. §6).
 - **Tracés "à explorer"** (`kind=todo`) : itinéraires suggérés non encore parcourus. Cyan `#06b6d4`, pointillés épais (`dashArray: "12, 10"`), **pas de halo**, **pas de niveau de confiance**. Mêmes mécaniques (mode manuel ou upload GPX, soft-delete).
@@ -118,11 +118,11 @@ Migrations : `ALTER TABLE traces ADD COLUMN IF NOT EXISTS kind ...` + `ALTER COL
 ### 5.1 Layout
 
 - Carte plein écran à gauche.
-- Panneau latéral droit (~320 px, repliable sur mobile) :
-  - Bouton **« + Ajouter »** → modale avec **4 onglets** : *GPX recherche* / *Tracer recherche* / *GPX à explorer* / *Tracer à explorer*.
-  - Toggle **« Afficher les traces supprimées »** (cf. §5.4).
-  - Toggle **« Afficher les tracés à explorer »** — **ON par défaut**, non persistant. Quand OFF, refetch avec `?kind=search`.
-  - Liste des traces : pastille de couleur (cyan + bordure dashed pour les `todo`), nom (avec tag `à explorer` pour les `todo`), auteur, date, confiance si pertinent, bouton suppression.
+- Panneau latéral droit (~320 px, repliable sur mobile) organisé en **deux sections symétriques** :
+  - **Tracés déjà cherchés** : 2 boutons d'action directe (*Upload GPX* / *Tracer manuellement*) puis liste des **5 derniers tracés `search` vivants** (ordre `created_at DESC`).
+  - **Tracés à chercher** : idem pour les tracés `kind=todo`.
+  - Toggle **« Afficher les traces supprimées »** (cf. §5.4) en haut du panneau.
+  - **Pas de bouton corbeille** dans la liste latérale (la suppression se fait via la carte, cf. §5.5).
 - **Sélecteur de fond de carte** (contrôle Leaflet `L.control.layers`) en haut-droite : OSM (défaut) / Topographique / Satellite, non persistant.
 - Au chargement : `fitBounds` sur l'union des bbox des **traces non supprimées uniquement** (`search` + `todo` confondus).
 
@@ -151,18 +151,21 @@ Migrations : `ALTER TABLE traces ADD COLUMN IF NOT EXISTS kind ...` + `ALTER COL
   - **aucune** action UI (pas de bouton corbeille, pas de restore — opération DB).
 - Les traces supprimées **ne participent pas** au `fitBounds` initial ni à un éventuel compteur « X traces / Y km ».
 
-### 5.5 Suppression
+### 5.5 Sélection et suppression
 
-- Bouton corbeille → modale `« Supprimer la trace "X" ? Cette action est irréversible. »` avec **Annuler** / **Supprimer**.
-- Pour les `todo` : message adapté `« Supprimer le tracé à explorer "X" ? ... »`.
+- **Sélection sur la carte** : clic sur une polyligne vivante → ouvre un popup Leaflet ancré sur la trace, contenant nom + (auteur · date · confiance si `search`) + boutons **Supprimer** / **Fermer**.
+- **Sélection persistante** : tant que la trace est sélectionnée, les autres traces sont atténuées (spotlight) et l'item correspondant dans le panneau latéral est mis en surbrillance.
+- **Désélection** : clic sur la carte hors d'une trace, bouton **Fermer** du popup, ou touche **Échap**.
+- **Traces supprimées** : `interactive: false` → impossible à sélectionner.
+- **Confirmation** : le bouton **Supprimer** du popup ouvre la modale `« Supprimer la trace "X" ? Cette action est irréversible. »` (texte adapté `le tracé à explorer` si `kind=todo`).
 - Message « irréversible » assumé côté UX : le rollback existe mais c'est une opération DB hors application.
 
-### 5.6 Spotlight au survol (desktop)
+### 5.6 Spotlight au survol panneau (desktop)
 
-- Au `mouseenter` sur un item de la liste latérale : toutes les autres traces sont visuellement atténuées (couleur grise, opacité ~0.18, halo ~0.08), la trace ciblée passe au-dessus (`bringToFront`) et son halo monte à ~0.65.
-- Au `mouseleave` : restauration de l'état normal.
+- En complément de la sélection persistante : au `mouseenter` sur un item de la liste latérale, toutes les autres traces sont visuellement atténuées (couleur grise, opacité ~0.18, halo ~0.08), la trace ciblée passe au-dessus (`bringToFront`) et son halo monte à ~0.65.
+- Au `mouseleave` : restauration de l'état normal (sauf si une trace est sélectionnée, le spotlight de sélection reste prioritaire).
 - Désactivé sur tactile via `matchMedia("(hover: hover) and (pointer: fine)")`.
-- Le clic sur l'item garde le comportement de zoom sur la bbox.
+- Le **clic sur l'item** zoome sur la bbox **ET** sélectionne la trace (équivalent à un clic sur la trace sur la carte).
 
 ## 6. Approximation halo / buffer
 
