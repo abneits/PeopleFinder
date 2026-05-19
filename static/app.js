@@ -580,10 +580,11 @@
     const bannerText = $("#manual-banner-text");
     bannerText.textContent =
       kind === "todo"
-        ? "Trac\u00e9 \u00e0 explorer : clic = point, double-clic sur un point = annule le dernier."
-        : "Mode manuel : clic = point, double-clic sur un point = annule le dernier.";
+        ? "Trac\u00e9 \u00e0 explorer : cliquez sur la carte pour ajouter des points."
+        : "Mode manuel : cliquez sur la carte pour ajouter des points.";
     banner.classList.remove("hidden");
     $("#manual-finish").disabled = true;
+    $("#manual-undo").disabled = true;
     closePanelMobile();
   }
 
@@ -607,13 +608,9 @@
       fillColor: color,
       fillOpacity: 1,
     }).addTo(map);
-    marker.on("dblclick", (e) => {
-      L.DomEvent.stopPropagation(e);
-      undoLastManualPoint();
-    });
     state.manualLayers.markers.push(marker);
     refreshManualPolyline();
-    $("#manual-finish").disabled = state.manualPoints.length < 2;
+    updateManualButtons();
   }
 
   function undoLastManualPoint() {
@@ -622,7 +619,13 @@
     const m = state.manualLayers.markers.pop();
     if (m) map.removeLayer(m);
     refreshManualPolyline();
-    $("#manual-finish").disabled = state.manualPoints.length < 2;
+    updateManualButtons();
+  }
+
+  function updateManualButtons() {
+    const n = state.manualPoints.length;
+    $("#manual-finish").disabled = n < 2;
+    $("#manual-undo").disabled = n === 0;
   }
 
   function refreshManualPolyline() {
@@ -642,6 +645,7 @@
     }
   });
 
+  $("#manual-undo").addEventListener("click", () => undoLastManualPoint());
   $("#manual-cancel").addEventListener("click", () => exitManualMode());
   $("#manual-finish").addEventListener("click", () => {
     if (state.manualPoints.length < 2) {

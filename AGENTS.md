@@ -45,7 +45,7 @@ Carte web collaborative pour cartographier les zones déjà parcourues lors de l
 ## Mode manuel (comportement précis)
 
 - Clic carte = ajoute un point.
-- Double-clic **sur un point existant** = annule le dernier point posé (≠ terminer le tracé).
+- Bouton **Annuler dernier point** dans le bandeau du mode manuel : retire le dernier point posé. Réutilisable plusieurs fois (jusqu'à vider le tracé). Pas de double-clic sur point — c'était instable et a été retiré.
 - Bouton **Terminer** = ouvre la modale métadonnées (nom / auteur / confiance / date par défaut aujourd'hui).
 - Bouton **Annuler** = sort du mode sans rien créer.
 

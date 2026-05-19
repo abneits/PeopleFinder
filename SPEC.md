@@ -128,11 +128,13 @@ Migrations : `ALTER TABLE traces ADD COLUMN IF NOT EXISTS kind ...` + `ALTER COL
 
 ### 5.2 Mode manuel
 
-1. Clic sur « Tracer manuellement » → la carte passe en mode draw.
+1. Clic sur « Tracer manuellement » dans une section du panneau → la carte passe en mode draw (kind hérité de la section).
 2. Chaque clic sur la carte = ajoute un point. Une polyligne en pointillés montre le tracé en cours.
-3. **Double-clic sur un point existant** = annule le **dernier point posé**. Ce n'est **pas** la fin du tracé.
-4. Bouton **« Terminer »** = ouvre la modale métadonnées (nom / auteur / confiance / date par défaut aujourd'hui), puis crée la trace.
-5. Bouton **« Annuler »** = sort du mode sans rien créer.
+3. Bouton **« Annuler dernier point »** dans le bandeau du mode manuel → retire le dernier point posé. **Réutilisable plusieurs fois** jusqu'à vider le tracé. Désactivé tant qu'aucun point n'a été posé.
+4. Bouton **« Terminer »** = ouvre la modale métadonnées (nom / auteur / confiance si `search` / date par défaut aujourd'hui), puis crée la trace. Activé à partir de 2 points.
+5. Bouton **« Quitter »** = sort du mode sans rien créer.
+
+> Note : le double-clic sur un point existant pour retirer le dernier point a été tenté puis retiré (instable et peu pratique). Il a été remplacé par le bouton **Annuler dernier point**.
 
 ### 5.3 Upload GPX
 
