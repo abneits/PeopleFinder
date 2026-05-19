@@ -11,7 +11,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
 from psycopg.types.json import Jsonb
 
 from ..db import get_pool
@@ -160,8 +160,8 @@ async def create_trace_gpx(
     )
 
 
-@router.delete("/{trace_id}", status_code=204)
-def delete_trace(trace_id: UUID) -> None:
+@router.delete("/{trace_id}", status_code=204, response_class=Response)
+def delete_trace(trace_id: UUID) -> Response:
     """Soft-delete idempotent.
 
     - Trace inconnue → 404.
@@ -184,4 +184,4 @@ def delete_trace(trace_id: UUID) -> None:
                     (str(trace_id),),
                 )
         conn.commit()
-    return None
+    return Response(status_code=204)
